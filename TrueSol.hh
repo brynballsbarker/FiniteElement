@@ -30,7 +30,9 @@ class TrueSol
              const double c );
 
     // Get the value of u at a point x.
-    double trueValue( const double& coord );
+    double evaluate( const double& coord );
+
+    bool checkLocal();
 
   private:
 
@@ -39,6 +41,9 @@ class TrueSol
 
     // Value of c.
     int d_c;
+
+    // Defined on local.
+    bool d_local;
 
 };
 

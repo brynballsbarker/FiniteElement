@@ -18,19 +18,29 @@ Force::Force( const int f_order,
               const double c )
     : d_f_order( f_order )
     , d_c( c )
-{ /* //// */ }
+{ 
+    
+    d_local = false:
+
+}
 
 //---------------------------------------------------------------------------//
 // Get the value of f at a point x.
-void Force::forceValue( const double& coord,
-                        double& val ) const
+double Force::evaluate( const double& coord )
 {
     if ( d_f_order == 0 )
-        val =  d_c;
+        return  d_c;
     else if (d_f_order == 1 )
-        val = coord;
+        return coord;
     else
-       val = coord * coord;
+       return coord * coord;
+}
+
+//---------------------------------------------------------------------------//
+// Get the value of f at a point x.
+bool Force::checkLocal()
+{
+    return d_local;
 }
 
 //---------------------------------------------------------------------------//

@@ -30,8 +30,9 @@ class Force
            const double c );
 
     // Get the value of f at a point x.
-    void forceValue( const double& coord, 
-                     double& val ) const;
+    double evaluate( const double& coord );
+         
+    bool checkLocal();
 
   private:
 
@@ -40,6 +41,9 @@ class Force
 
     // Value of c.
     int d_c;
+
+    // defined on local
+    bool d_local;
 
 };
 
