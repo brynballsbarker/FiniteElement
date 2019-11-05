@@ -14,16 +14,105 @@ namespace FEA
 
 //---------------------------------------------------------------------------//
 // Constructor.
-Mesh::Mesh( const int n )
+Mesh::Mesh( const int n, const int p )
     : d_num_nodes( n+1 )
     , d_num_elements( n )
     , d_element_width( 1./n )
+    , d_shape_order( p )
 { 
     // Create the boundary nodes.
-    
     d_boundary_nodes.resize(1);
     d_boundary_nodes[0] = d_num_nodes;
     
+    for ( int a = 1; a <= d_shape_order + 1; ++a )
+    {
+        FEA::Bernstein bernstein( d_shape_order, a );
+        d_bernstein.push_back( bernstein );
+    }
+
+    d_coefs.resize( d_num_elements );
+
+    if ( d_shape_order == 2 )
+    {
+        for ( int e = 0; e < d_num_elements; ++e )
+        {
+            d_coefs[e].resize( d_shape_order + 1 );
+            if ( e == 0 )
+            {
+                std::vector<double> vect{ 1., 0., 0. };
+                d_coefs[e][0] = vect;
+
+                vect = { 0., 1., .5 };
+                d_coefs[e][1] = vect;
+
+                vect = {0.,0.,.5};
+                d_coefs[e][2] = vect;
+            }
+            else if ( e == ( d_num_elements - 1 ) )
+            {
+                std::vector<double> vect{ .5, 0., 0. };
+                d_coefs[e][0] = vect;
+
+                vect = { .5, 1., 0. };
+                d_coefs[e][1] = vect;
+
+                vect = {0.,0.,1.};
+                d_coefs[e][2] = vect;
+            }
+            else
+            {
+                std::vector<double> vect{ .5, 0., 0. };
+                d_coefs[e][0] = vect;
+
+                vect = { .5, 1., .5 };
+                d_coefs[e][1] = vect;
+
+                vect = {0.,0.,.5};
+                d_coefs[e][2] = vect;
+            }
+        }
+    }
+    if ( d_shape_order == 3 )
+    {
+        for ( int e = 0; e < d_num_elements; ++e )
+        {
+            d_coefs[e].resize( d_shape_order + 1 );
+            if ( e == 0 )
+            {
+                std::vector<double> vect{ 1., 0., 0. };
+                d_coefs[e][0] = vect;
+
+                vect = { 0., 1., .5 };
+                d_coefs[e][1] = vect;
+
+                vect = {0.,0.,.5};
+                d_coefs[e][2] = vect;
+            }
+            else if ( e == ( d_num_elements - 1 ) )
+            {
+                std::vector<double> vect{ .5, 0., 0. };
+                d_coefs[e][0] = vect;
+
+                vect = { .5, 1., 0. };
+                d_coefs[e][1] = vect;
+
+                vect = {0.,0.,1.};
+                d_coefs[e][2] = vect;
+            }
+            else
+            {
+                std::vector<double> vect{ .5, 0., 0. };
+                d_coefs[e][0] = vect;
+
+                vect = { .5, 1., .5 };
+                d_coefs[e][1] = vect;
+
+                vect = {0.,0.,.5};
+                d_coefs[e][2] = vect;
+            }
+        }
+    }
+
 }
 
 //---------------------------------------------------------------------------//
@@ -93,13 +182,14 @@ void Mesh::initializeElement(
     element.ind1 = element_id;
     element.ind2 = element_id + 1;
     
-    // Compute local K on the element
-    double h = element.n2 - element.n1;
-    double val = ((element.n2 == 1.) ? 0. : 1. );
-    element.k[0][0] = 1. / h;
-    element.k[0][1] = -val / h;
-    element.k[1][0] = -val / h;
-    element.k[1][1] = val / h;
+    // Initialize shape functions.
+    for ( int a = 1; a <= d_shape_order+1; ++a )
+    {
+        // Create new shape function.
+        FEA::Shape shape( d_coefs[element_id][a-1], d_bernstein, coords );
+        element.shape_functions.push_back( shape );
+    }
+
 }
 
 //---------------------------------------------------------------------------//

@@ -29,7 +29,8 @@ class Solver
     // Constructor.
     Solver( const int num_elements,
             const int f_order,
-            const double c );
+            const double c,
+            const int p );
 
     // Initialize the problem by initializing the elements.
     void initialize();

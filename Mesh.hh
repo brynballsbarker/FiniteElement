@@ -95,8 +95,17 @@ class Mesh
     // Mesh celement width.
     double d_element_width;
 
+    // Order of shape functions.
+    int d_shape_order;
+
     // Boundary nodes.
     std::vector<int> d_boundary_nodes;
+
+    // Bernstein basis
+    std::vector<std::shared_ptr<Bernstein> > d_bernstein;
+
+    // Mapping coefficients
+    std::vector<std::vector<double> > d_coefs;
 
 };
 

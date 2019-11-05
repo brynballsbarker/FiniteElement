@@ -20,9 +20,11 @@ namespace FEA
 // Constructor.
 Solver::Solver( const int n,
                 const int f_order,
-                const double c )
+                const double c,
+                const int p )
     : d_n( n )
     , d_f_order( f_order )
+    , d_p( p )
 {
     // Define f.
     d_f = std::make_shared<Force>( f_order, c );
@@ -31,7 +33,7 @@ Solver::Solver( const int n,
     d_u = std::make_shared<TrueSol>( f_order, c );
 
     // Create the mesh.
-    d_mesh = std::make_shared<Mesh>( n );
+    d_mesh = std::make_shared<Mesh>( n, p );
 }
 
 //---------------------------------------------------------------------------//
@@ -58,15 +60,16 @@ void Solver::initialize()
 void Solver::solve() 
 {
     // Allocate mesh fields.
-    int num_nodes = d_mesh->totalNumNodes();
+    int num_elements = d_mesh->totalNumElements();
 
+    int N_size = num_elements + d_p;
     // Initialize K.
     std::vector<std::vector<double> > K(
-            num_nodes,std::vector<double>(num_nodes, 0.0));
-    K[num_nodes-1][num_nodes-1] = 1.0;
+            N_size,std::vector<double>(N_size, 0.0));
+    K[N_size-1][N_size-1] = 1.0;
 
     // Initialize F.
-    std::vector<double> F(num_nodes, 0.0);
+    std::vector<double> F(N_size, 0.0);
 
     // Loop over elements.
     for ( auto& e : d_elements )
@@ -114,13 +117,17 @@ void Solver::updateK( std::vector<std::vector<double> >& K,
 {
         // Get global element position
         int i = e.ind1;
-        int j = e.ind2;
 
         // Update stiffness matrix.
-        K[i][i] += e.k[0][0];
-        K[i][j] += e.k[0][1];
-        K[j][i] += e.k[1][0];
-        K[j][j] += e.k[1][1];
+        for ( int j = 0; j < 3; ++j )
+        {
+            for ( int k = j; k < 3; ++k )
+            {
+                double val = energyInnerProdcut(e.shape_functions[j],e.shape_functions[k]);
+                K[i+j][i+k] += val;
+                K[i+k][i+j] += val;
+            }
+        }
 
 }
 
@@ -131,15 +138,10 @@ void Solver::updateF( std::vector<double>& F,
 {
         // Get global element position
         int i = e.ind1;
-        int j = e.ind2;
 
-        // Calculate integral.
-        std::array<double,2> f;
-        integrateRHS( e, f);
-
-        // Update force vector. 
-        F[i] += f[0];
-        F[j] += f[1];
+        // Update stiffness matrix.
+        for ( int j = 0; j < 3; ++j )
+            F[i+j] +=  innerProdcut(e.shape_functions[j],d_f);
 
 }
 
@@ -153,10 +155,8 @@ void Solver::integrateRHS( const FEA::Element& e,
     double right = e.n2;
 
     // Compute the force value at the endpoints.
-    double f_1;
-    double f_2;
-    d_f->forceValue( left, f_1 );
-    d_f->forceValue( right, f_2 );
+    double f_1 = d_f->evaluate( left );
+    double f_2 = d_f->evaluate( right );
 
     // Approximate the inner products. 
     double h = right - left;
@@ -259,7 +259,7 @@ void Solver::evaluateTrue( const std::vector<double>& domain,
 
     for ( int i = 0; i < dom_len; ++i )
     {
-        u[i] = d_u->trueValue( domain[i] );
+        u[i] = d_u->evaluate( domain[i] );
     }
 }
 
@@ -289,7 +289,7 @@ void Solver::computeError( double& error,
         {
             // Map local to global and compute u(x).
             d_mesh->mapLocalToGlobalFrame( ksi[i], e.n1, e.n2, x );
-            u_ksi = d_u->trueValue( x );
+            u_ksi = d_u->evaluate( x );
 
             // Compute uh(ksi)
             d_mesh->shapeFunctionValues( ksi[i], values );
@@ -308,6 +308,66 @@ void Solver::computeError( double& error,
     file << d_n << ',' << d_f_order << ',' << error << std::endl;
 }
 
+//---------------------------------------------------------------------------//
+// Compute the L2 norm of |u - uh|.
+double Solver::innerProduct( auto& func1, auto& func2 )
+{
+    if ( func1->checkLocal()==true && func2->checkLocal()==false )
+        std::array<double,2> endpoints = func1->getEndpoints();
+
+    double x;
+    double val1, val2;
+
+    // Define gaussian quadrature interpolation points. 
+    std::array<double,3> ksi = {-pow(3./5.,.5), 0.0, pow(3./5.,.5)};
+    std::array<double,3> w = {5./9.,8./9.,5./9.};
+
+    double h = d_mesh->getElementWidth();
+    double dx = h / 2.;
+    double sum = 0.0;
+
+    // Loop over elements.
+    for ( int i = 0; i < 3; ++i )
+    {
+        val1 = func1->evaluate(ksi[i]);
+        if ( func2->checkLocal() )
+        {
+            val2 = func2->evaluate(ksi[i]);
+        }
+        else
+        {
+            d_mesh->mapLocalToGlobalFrame( ksi[i], endpoints[0], endpoints[1], x );
+            val2 = func2->evaluate(x);
+        }
+        sum += val1*val2*dx*w[i];
+    }
+
+    return sum
+}
+//---------------------------------------------------------------------------//
+// Compute the L2 norm of |u - uh|.
+double Solver::energyInnerProduct( auto& func1, auto& func2 )
+{
+    double val1, val2;
+
+    // Define gaussian quadrature interpolation points. 
+    std::array<double,3> ksi = {-pow(3./5.,.5), 0.0, pow(3./5.,.5)};
+    std::array<double,3> w = {5./9.,8./9.,5./9.};
+
+    double h = d_mesh->getElementWidth();
+    double dx = h / 2.;
+    double sum = 0.0;
+
+    // Loop over elements.
+    for ( int i = 0; i < 3; ++i )
+    {
+        val1 = func1->evaluateDeriv(ksi[i]);
+        val2 = func2->evaluateDeriv(ksi[i]);
+        sum += val1*val2*dx*w[i];
+    }
+
+    return sum
+}
 //---------------------------------------------------------------------------//
 // Compute the L2 norm of |u - uh|.
 void Solver::checkBehavior( double& nodes,
