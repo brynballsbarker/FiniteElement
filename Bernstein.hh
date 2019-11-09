@@ -1,13 +1,13 @@
 //---------------------------------------------------------------------------//
 /*!
- * \file Bernoulli.hh
+ * \file Bernstein.hh
  */
 //---------------------------------------------------------------------------//
 
-#ifndef FEA_BERNOULLI_HH
-#define FEA_BERNOULLI_HH
+#ifndef FEA_BERNSTEIN_HH
+#define FEA_BERNSTEIN_HH
 
-#include "Element.hh"
+#include "Helpers.hh"
 
 #include <array>
 #include <vector>
@@ -17,17 +17,17 @@ namespace FEA
 
 //---------------------------------------------------------------------------//
 /*!
- * \class Bernoulli
+ * \class Bernstein
  *
  * \brief True solution to system.
  */
-class Bernoulli
+class Bernstein
 {
   public:
 
     // Constructor.
-    Bernoulli( const int p_val,
-             const double a_val );
+    Bernstein( const int p_val,
+             const int a_val );
 
     // Get the value of shpae func at a point x.
     double evaluate( const double& coord );
@@ -46,17 +46,14 @@ class Bernoulli
     // p choose c.
     int d_choose;
 
-    // Defined on local
-    bool d_local;
-
 };
 
 } 
 
 //---------------------------------------------------------------------------//
 
-#endif // end FEA_BERNOULLI_HH
+#endif // end FEA_BERNSTEIN_HH
 
 //---------------------------------------------------------------------------//
-// end Bernoulli.hh
+// end Bernstein.hh
 //---------------------------------------------------------------------------//

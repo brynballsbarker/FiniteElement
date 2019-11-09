@@ -8,6 +8,8 @@
 #define FEA_MESH_HH
 
 #include "Element.hh"
+#include "Bernstein.hh"
+#include "Shape.hh"
 
 #include <array>
 #include <vector>
@@ -26,7 +28,7 @@ class Mesh
   public:
 
     // Constructor.
-    Mesh( const int n );
+    Mesh( const int n, const int p );
 
     // Get the total number of elements in the mesh.
     int totalNumElements() const;
@@ -105,7 +107,7 @@ class Mesh
     std::vector<std::shared_ptr<Bernstein> > d_bernstein;
 
     // Mapping coefficients
-    std::vector<std::vector<double> > d_coefs;
+    std::vector<std::vector<std::vector<double> > > d_coefs;
 
 };
 

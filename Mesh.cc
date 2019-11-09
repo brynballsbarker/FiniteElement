@@ -8,6 +8,7 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <fstream>
 
 namespace FEA
 {
@@ -23,15 +24,46 @@ Mesh::Mesh( const int n, const int p )
     // Create the boundary nodes.
     d_boundary_nodes.resize(1);
     d_boundary_nodes[0] = d_num_nodes;
-    
+
+    d_bernstein.resize( d_shape_order+1 );
     for ( int a = 1; a <= d_shape_order + 1; ++a )
-    {
-        FEA::Bernstein bernstein( d_shape_order, a );
-        d_bernstein.push_back( bernstein );
-    }
+        d_bernstein[a-1] = std::make_shared<Bernstein>( d_shape_order, a );
+
+    std::string filename = "toplotbern.csv";
+    std::ofstream file( filename );
+
+    // Add column names.
+    file << "x,y" << std::endl;
+
+    std::array<double,100> dom;
+
+    int dom_len = dom.size();
+    double h_step = 2. / ( dom_len - 1. );
+
+    for ( int i = 0; i < dom_len; ++i )
+        dom[i] = -1. + i * h_step;
+
+    for ( auto& b : d_bernstein  )
+        for ( int i = 0; i < dom_len; ++i )
+            file << dom[i] << "," << b->evaluate(dom[i]) << std::endl;
+
 
     d_coefs.resize( d_num_elements );
 
+    if ( d_shape_order == 1 )
+    { 
+        for ( int e = 0; e < d_num_elements; ++e )
+        {
+            d_coefs[e].resize( d_shape_order + 1 );
+
+            std::vector<double> vect{ 1., 0 };
+            d_coefs[e][0] = vect;
+
+            vect = { 0., 1.};
+            d_coefs[e][1] = vect;
+
+        }
+    }
     if ( d_shape_order == 2 )
     {
         for ( int e = 0; e < d_num_elements; ++e )
@@ -79,36 +111,73 @@ Mesh::Mesh( const int n, const int p )
             d_coefs[e].resize( d_shape_order + 1 );
             if ( e == 0 )
             {
-                std::vector<double> vect{ 1., 0., 0. };
+                std::vector<double> vect{ 1., 0., 0., 0. };
                 d_coefs[e][0] = vect;
 
-                vect = { 0., 1., .5 };
+                vect = { 0., 1., .5, .25 };
                 d_coefs[e][1] = vect;
 
-                vect = {0.,0.,.5};
+                vect = {0.,0.,.5, 7./12.};
                 d_coefs[e][2] = vect;
+
+                vect = {0.,0.,0.,1./6.};
+                d_coefs[e][3] = vect;
+            }
+            else if ( e == 1 )
+            {
+                std::vector<double> vect{ .25, 0., 0., 0. };
+                d_coefs[e][0] = vect;
+
+                vect = { 7./12., 2./3., 1./3., 1./6. };
+                d_coefs[e][1] = vect;
+
+                vect = {1./6.,1./3.,2./3., 2./3.};
+                d_coefs[e][2] = vect;
+
+                vect = {0.,0.,0.,1./6.};
+                d_coefs[e][3] = vect;
+            }
+            else if ( e == ( d_num_elements - 2 ) )
+            {
+                std::vector<double> vect{ 1./6., 0., 0.,0. };
+                d_coefs[e][0] = vect;
+
+                vect = {2./3.,2./3.,1./3.,1./6.};
+                d_coefs[e][1] = vect;
+
+                vect = {1./6.,1./3.,2./3.,7./12.};
+                d_coefs[e][2] = vect;
+
+                vect = {0.,0.,0.,1./4.};
+                d_coefs[e][3] = vect;
             }
             else if ( e == ( d_num_elements - 1 ) )
             {
-                std::vector<double> vect{ .5, 0., 0. };
+                std::vector<double> vect{ 1./6.,0., 0., 0. };
                 d_coefs[e][0] = vect;
 
-                vect = { .5, 1., 0. };
+                vect = {7./12.,1./2.,0.,0.};
                 d_coefs[e][1] = vect;
 
-                vect = {0.,0.,1.};
+                vect = {.25,.5,1.,0.};
                 d_coefs[e][2] = vect;
+
+                vect = {0.,0.,0.,1.};
+                d_coefs[e][3] = vect;
             }
             else
             {
-                std::vector<double> vect{ .5, 0., 0. };
+                std::vector<double> vect{ 1./6., 0., 0.,0. };
                 d_coefs[e][0] = vect;
 
-                vect = { .5, 1., .5 };
+                vect = {2./3.,2./3.,1./3.,1./6.};
                 d_coefs[e][1] = vect;
 
-                vect = {0.,0.,.5};
+                vect = {1./6.,1./3.,2./3.,2./3.};
                 d_coefs[e][2] = vect;
+
+                vect = {0.,0.,0.,1./6.};
+                d_coefs[e][3] = vect;
             }
         }
     }
@@ -182,13 +251,12 @@ void Mesh::initializeElement(
     element.ind1 = element_id;
     element.ind2 = element_id + 1;
     
+    element.shape_functions.resize( d_shape_order+1 );
+
     // Initialize shape functions.
     for ( int a = 1; a <= d_shape_order+1; ++a )
-    {
-        // Create new shape function.
-        FEA::Shape shape( d_coefs[element_id][a-1], d_bernstein, coords );
-        element.shape_functions.push_back( shape );
-    }
+        element.shape_functions[a-1] = std::make_shared<FEA::Shape>(
+                d_coefs[element_id][a-1], d_bernstein, coords );
 
 }
 

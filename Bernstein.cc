@@ -5,7 +5,6 @@
 //---------------------------------------------------------------------------//
 
 #include "Bernstein.hh"
-#include "Functions.hh"
 
 #include <array>
 #include <vector>
@@ -24,14 +23,13 @@ Bernstein::Bernstein( const int p_val,
     // Compute p choose a.
     d_choose = 1.0 * factorial(d_p) / (1.0 * factorial( d_a - 1) * factorial( d_p + 1 - d_a ));
 
-    d_local = true;
 }
 
 //---------------------------------------------------------------------------//
 // Get the value of u at a point x.
 double Bernstein::evaluate( const double& coord )
 {   
-    return 1./pow(2,d_p) * d_choose * pow(1.-coord,d_p+1-d_a) * pow(1.+coord,d_a-1)
+    return 1./pow(2,d_p) * d_choose * pow(1.-coord,d_p+1-d_a) * pow(1.+coord,d_a-1);
 }
 
 //---------------------------------------------------------------------------//

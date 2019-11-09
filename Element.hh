@@ -7,8 +7,9 @@
 #ifndef FEA_ELEMENT_HH
 #define FEA_ELEMENT_HH
 
-#include <array>
 #include "Shape.hh"
+
+#include <array>
 
 namespace FEA
 {
@@ -38,7 +39,7 @@ class Element
     int ind2;
 
     //! Shape functions.
-    std::vector<Shape> shape_functions;
+    std::vector<std::shared_ptr<Shape> > shape_functions;
 
     //! Element basis functions.
     std::array<double,2> basis_values;

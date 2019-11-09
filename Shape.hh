@@ -26,18 +26,18 @@ class Shape
   public:
 
     // Constructor.
-    Shape( const std::vector<double> coef,
-           std::vector<std::shared_ptr<Bernstein> > basis,
-           const std::array<double, 2> endpoints );
+    Shape( std::vector<double> coef,
+           std::vector<std::shared_ptr<FEA::Bernstein> > basis,
+           std::array<double, 2> endpoints );
 
     // Get the value of shpae func at a point x.
-    double evaluate( const double& coord );
+    double evaluate( double& coord );
 
     // Get the derivate at point x.
-    double evaluateDeriv( const double& coord );
+    double evaluateDeriv( double& coord );
 
-    // 
-    bool checkLocal();
+    //
+    std::array<double,2> getEndpoints() const;
 
   private:
 
@@ -45,10 +45,7 @@ class Shape
     std::vector<double> d_coefs;
 
     // Bernstein basis
-    std::vector<std::shared_ptr<Bernstein> > d_basis;
-
-    // Defined on local
-    bool d_local;
+    std::vector<std::shared_ptr<FEA::Bernstein> > d_basis;
 
     std::array<double,2> d_endpoints;
 
