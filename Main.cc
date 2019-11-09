@@ -12,8 +12,10 @@
 #include <iostream>
 #include <fstream>
 
-int main()
+int main(int argc, char** argv)
 {
+    int p = ( argc == 2 ) ? std::atoi( argv[1] ) : 2;
+    std::cout << "your p value is " << p << std::endl;
 
     // Create csv file for storing errors.
     std::string filename = "results/errors.csv";
@@ -34,7 +36,7 @@ int main()
     for ( int n : n_vals )
     {
         std::cout << "\tNumber of elements: " << n << std::endl;
-        FEA::Solver solver( n, f_order, c );
+        FEA::Solver solver( n, f_order, c, p );
         solver.initialize();
         solver.solve();
     }
@@ -48,7 +50,7 @@ int main()
     for ( int n : n_vals )
     {
         std::cout << "\tNumber of elements: " << n << std::endl;
-        FEA::Solver solver( n, f_order, c );
+        FEA::Solver solver( n, f_order, c, p );
         solver.initialize();
         solver.solve();
     }
@@ -62,7 +64,7 @@ int main()
     for ( int n : n_vals )
     {
         std::cout << "\tNumber of elements: " << n << std::endl;
-        FEA::Solver solver( n, f_order, c );
+        FEA::Solver solver( n, f_order, c, p );
         solver.initialize();
         solver.solve();
     }
