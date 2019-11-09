@@ -27,10 +27,10 @@ Solver::Solver( const int n,
     , d_p( p )
 {
     // Define f.
-    d_f = std::make_shared<Force>( f_order, c );
+    d_f = std::make_shared<Function>( f_order, c, false, true );
 
     // Define the solution.
-    d_u = std::make_shared<TrueSol>( f_order, c );
+    d_u = std::make_shared<Function>( f_order, c, true, false );
 
     // Create the mesh.
     d_mesh = std::make_shared<Mesh>( n, p );
@@ -47,9 +47,9 @@ void Solver::initialize()
     for ( int c = 0; c < num_elements; ++c )
     {
         // Create new element with given id.
+        // d_bernstein[a-1] = std::make_shared<Bernstein>( d_shape_order, a );
         FEA::Element element;
         d_mesh->initializeElement( c, element );
-
         // Add element to storage vector. 
         d_elements.push_back( element );
     }
@@ -61,12 +61,49 @@ void Solver::solve()
 {
     // Allocate mesh fields.
     int num_elements = d_mesh->totalNumElements();
+    int num_nodes = d_mesh->totalNumNodes();
 
     int N_size = num_elements + d_p;
+
+
+    // Storing for plotting
+    //
+    // domain
+    //
+
+    std::string filename = "toplot.csv";
+    std::ofstream file( filename );
+
+    // Add column names.
+    file << "x,y" << std::endl;
+
+    std::array<double,100> dom;
+
+    int dom_len = dom.size();
+    double h_step = 2. / ( dom_len - 1. );
+
+    for ( int i = 0; i < dom_len; ++i )
+        dom[i] = -1. + i * h_step;
+
+    for ( auto& e : d_elements )
+    {
+        std::array<double,100> x;
+        int x_len = x.size();
+        h_step = (e.n2 - e.n1)/(x_len-1.);
+
+        for ( int i = 0; i < x_len; ++i )
+            x[i] = e.n1 + i * h_step;
+
+        for ( auto& s : e.shape_functions )
+            for ( int i = 0; i < x_len; ++i )
+                file << x[i] << "," << s->evaluate(dom[i]) << std::endl;
+        
+    }
+
+
     // Initialize K.
     std::vector<std::vector<double> > K(
             N_size,std::vector<double>(N_size, 0.0));
-    K[N_size-1][N_size-1] = 1.0;
 
     // Initialize F.
     std::vector<double> F(N_size, 0.0);
@@ -82,11 +119,39 @@ void Solver::solve()
 
     }
 
+    F[N_size-1] = 0.;
+    for ( int i = 0; i < N_size; ++i )
+    {
+        K[N_size-1][i] = 0.;
+        K[i][N_size-1] = 0.;
+    }
+
+    K[N_size-1][N_size-1] = 1.0;
+
     // Solve Kd = F using Gauss Elimination.
     std::vector<double> d( F.begin(), F.end() );;
     gauss( d, K );
+    /*
+    for ( int i = 0; i < N_size; ++i )
+    {
+        for ( int j = 0; j < N_size; ++j )
+            std::cout << K[i][j] << " ";
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+    std::cout << "\nF\n\n";
+    for ( int i = 0; i < N_size; ++i )
+        std::cout << F[i] << " ";
+    std::cout << std::endl;
+    std::cout << "\nd\n";
+    std::cout << std::endl;
 
-    // Initialize domain and solution vectors.
+    for ( int i = 0; i < N_size; ++i )
+        std::cout << d[i] << " ";
+    std::cout << "\n";
+
+*/
+
     std::vector<double> domain(2*num_nodes - 1,0.0);
     std::vector<double> uh(2*num_nodes - 1, 0.0);
     std::vector<double> u(2*num_nodes - 1, 0.0);
@@ -99,15 +164,14 @@ void Solver::solve()
     // Compute the error.
     double error, nodes, midpoints;
     computeError( error, d );
-    checkBehavior( nodes, midpoints, u, uh );
+//    checkBehavior( nodes, midpoints, u, uh );
 
-    std::cout << "\t\tError on nodes: \t\t" << nodes << std::endl;
-    std::cout << "\t\tError on midpoints: \t" << midpoints << std::endl;
+//    std::cout << "\t\tError on nodes: \t\t" << nodes << std::endl;
+//    std::cout << "\t\tError on midpoints: \t" << midpoints << std::endl;
 
     // Store the solutions for plotting.
     plot( domain, uh, u );
     std::cout << "\t\tL2 Error: \t\t\t\t" << error << std::endl;
-
 }
 
 //---------------------------------------------------------------------------//
@@ -119,13 +183,15 @@ void Solver::updateK( std::vector<std::vector<double> >& K,
         int i = e.ind1;
 
         // Update stiffness matrix.
-        for ( int j = 0; j < 3; ++j )
+        for ( int j = 0; j < d_p+1; ++j )
         {
-            for ( int k = j; k < 3; ++k )
+            for ( int k = j; k < d_p+1; ++k )
             {
-                double val = energyInnerProdcut(e.shape_functions[j],e.shape_functions[k]);
+                double val = energyInnerProduct(e.shape_functions[j],
+                                                e.shape_functions[k]);
                 K[i+j][i+k] += val;
-                K[i+k][i+j] += val;
+                if ( j != k )
+                    K[i+k][i+j] += val;
             }
         }
 
@@ -140,8 +206,8 @@ void Solver::updateF( std::vector<double>& F,
         int i = e.ind1;
 
         // Update stiffness matrix.
-        for ( int j = 0; j < 3; ++j )
-            F[i+j] +=  innerProdcut(e.shape_functions[j],d_f);
+        for ( int j = 0; j < d_p+1; ++j )
+            F[i+j] +=  innerProduct(e.shape_functions[j],d_f);
 
 }
 
@@ -174,36 +240,47 @@ void Solver::gauss( std::vector<double>& d,
                     std::vector<std::vector<double> > K ) 
 {
     double scale;
-    int n = d_mesh->totalNumNodes();
+    int N_size = d_n + d_p;
     
     // Forward reduction.
-    for ( int i = 0; i < n-2; ++i )
+    for ( int i = 0; i < N_size-2; ++i )
     {
         // Scale row so first entry is 1.
         scale = K[i][i];
-        for ( int j = i; j < i+2; ++j )
+        int end1 = ( i+d_p+1 > N_size ) ? N_size : i+d_p+1;
+        for ( int j = i; j < end1; ++j )
             K[i][j] /= scale;
         d[i] /= scale;
         
         // Eliminate other leading entries.
-        scale = K[i+1][i];
-        for ( int j = i; j < i+3; ++j )
-            K[i+1][j] -= scale * K[i][j];
-        d[i+1] -= scale * d[i];
+        int end2 = ( d_p+1 > N_size-i ) ? N_size-i : d_p+1;
+        for ( int k = 1; k < end2; ++k )
+        {
+            scale = K[i+k][i];
+            int end3 = ( i+d_p+1 > N_size ) ? N_size : i+d_p+1;
+            for ( int j = i; j < end3; ++j )
+                K[i+k][j] -= scale * K[i][j];
+            d[i+k] -= scale * d[i];
+        }
     }
 
     // Handle the second to last row.
-    scale = K[n-2][n-2];
-    K[n-2][n-2] /= scale;
-    d[n-2] /= scale;
+    scale = K[N_size-2][N_size-2];
+    K[N_size-2][N_size-2] /= scale;
+    d[N_size-2] /= scale;
 
     // Backward reduction. 
-    for ( int i = n-3; i >= 0; --i )
+    for ( int i = N_size-2; i >= 1; --i )
     {
-        scale = K[i][i+1];
-        K[i][i+1] -= scale * K[i+1][i+1];
-        d[i] -= scale * d[i+1];
+        int end4 = ( 0 < i-d_p ) ? i-d_p : 0;
+        for ( int j = i-1; j >= end4; --j )
+        {
+            scale = K[j][i];
+            K[j][i] -= scale * K[i][i];
+            d[j] -= scale * d[i];
+        }
     }
+
 }
 
 //---------------------------------------------------------------------------//
@@ -241,12 +318,13 @@ void Solver::evaluateApprox( const std::vector<double>& domain,
         // Find local position of x in the given element.
         d_mesh->mapGlobalToLocalFrame( x, element_id, ref_coord );
 
-        // Get the value of the shape functions at x.
-        d_mesh->shapeFunctionValues( ref_coord, values );
-
         // Compute the value of uh at x.
         auto& e = d_elements[ element_id ];
-        uh[i] = d[e.ind1] * values[0] + d[e.ind2] * values[1];
+
+        double val = 0.;
+        for ( int j = 0; j < d_p + 1; ++j )
+            val += d[element_id+j] * e.shape_functions[j]->evaluate(ref_coord);
+        uh[i] = val;    
     }
 }
 
@@ -292,8 +370,10 @@ void Solver::computeError( double& error,
             u_ksi = d_u->evaluate( x );
 
             // Compute uh(ksi)
-            d_mesh->shapeFunctionValues( ksi[i], values );
-            uh_ksi = d[e.ind1]*values[0] + d[e.ind2]*values[1];
+            double val = 0.;
+            for ( int j = 0; j < d_p + 1; ++j )
+                val += d[e.ind1+j] * e.shape_functions[j]->evaluate(ksi[i]);
+            uh_ksi = val;    
 
             // Add the approximation to the sum
             sum += pow( u_ksi-uh_ksi, 2 ) * dx * w[i];
@@ -310,10 +390,10 @@ void Solver::computeError( double& error,
 
 //---------------------------------------------------------------------------//
 // Compute the L2 norm of |u - uh|.
-double Solver::innerProduct( auto& func1, auto& func2 )
+double Solver::innerProduct( std::shared_ptr<FEA::Shape> func1, 
+                             std::shared_ptr<FEA::Function> func2 )
 {
-    if ( func1->checkLocal()==true && func2->checkLocal()==false )
-        std::array<double,2> endpoints = func1->getEndpoints();
+    std::array<double,2> endpoints = func1->getEndpoints();
 
     double x;
     double val1, val2;
@@ -326,27 +406,26 @@ double Solver::innerProduct( auto& func1, auto& func2 )
     double dx = h / 2.;
     double sum = 0.0;
 
+ //   std::cout << "val1\tx\tval2\n";
     // Loop over elements.
     for ( int i = 0; i < 3; ++i )
     {
         val1 = func1->evaluate(ksi[i]);
-        if ( func2->checkLocal() )
-        {
-            val2 = func2->evaluate(ksi[i]);
-        }
-        else
-        {
-            d_mesh->mapLocalToGlobalFrame( ksi[i], endpoints[0], endpoints[1], x );
-            val2 = func2->evaluate(x);
-        }
+        d_mesh->mapLocalToGlobalFrame( ksi[i], endpoints[0], endpoints[1], x );
+        val2 = func2->evaluate(x);
+
+//        std::cout << val1 << "\t" << x << "\t" << val2 << std::endl;
+        
         sum += val1*val2*dx*w[i];
     }
 
-    return sum
+    return sum;
+    
 }
 //---------------------------------------------------------------------------//
 // Compute the L2 norm of |u - uh|.
-double Solver::energyInnerProduct( auto& func1, auto& func2 )
+double Solver::energyInnerProduct( std::shared_ptr<FEA::Shape> func1, 
+                                   std::shared_ptr<FEA::Shape> func2)
 {
     double val1, val2;
 
@@ -366,7 +445,7 @@ double Solver::energyInnerProduct( auto& func1, auto& func2 )
         sum += val1*val2*dx*w[i];
     }
 
-    return sum
+    return sum;
 }
 //---------------------------------------------------------------------------//
 // Compute the L2 norm of |u - uh|.

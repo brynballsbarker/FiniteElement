@@ -9,8 +9,7 @@
 
 #include "Mesh.hh"
 #include "Element.hh"
-#include "Force.hh"
-#include "TrueSol.hh"
+#include "Function.hh"
 
 #include <vector>
 #include <array>
@@ -73,6 +72,14 @@ class Solver
     void computeError( double& error,
                        const std::vector<double>& d );
 
+    // Compute the L2 norm of |u - uh|.
+    double innerProduct( std::shared_ptr<FEA::Shape> func1, 
+                         std::shared_ptr<FEA::Function> func2 );
+   
+    // Compute the L2 norm of |u - uh|.
+    double energyInnerProduct( std::shared_ptr<FEA::Shape> func1, 
+                               std::shared_ptr<FEA::Shape> func2 );
+
     // Look at behavior on the nodes and on the interior.
     void checkBehavior( double& nodes,
                             double& midpoints,
@@ -92,11 +99,14 @@ class Solver
     // Order of f.
     int d_f_order;
 
+    // Shape funciton order.
+    int d_p;
+
     // Focre function;
-    std::shared_ptr<Force> d_f;
+    std::shared_ptr<Function> d_f;
 
     // True solution.
-    std::shared_ptr<TrueSol> d_u;
+    std::shared_ptr<Function> d_u;
 
     // Mesh.
     std::shared_ptr<Mesh> d_mesh;
