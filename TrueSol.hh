@@ -7,7 +7,7 @@
 #ifndef FEA_TRUESOL_HH
 #define FEA_TRUESOL_HH
 
-#include "Element.hh"
+#include "Function.hh"
 
 #include <array>
 #include <vector>
@@ -21,7 +21,7 @@ namespace FEA
  *
  * \brief True solution to system.
  */
-class TrueSol
+class TrueSol : public Function
 {
   public:
 
@@ -30,20 +30,15 @@ class TrueSol
              const double c );
 
     // Get the value of u at a point x.
-    double evaluate( const double& coord );
-
-    bool checkLocal();
-
+    double evaluate( const double& coord ) const override;
+    
   private:
 
-    // Order of f.
+    // Material id.
     int d_f_order;
 
-    // Value of c.
+    // Color
     int d_c;
-
-    // Defined on local.
-    bool d_local;
 
 };
 

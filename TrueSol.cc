@@ -22,13 +22,12 @@ TrueSol::TrueSol( const int f_order,
     , d_c( c )
 { 
     
-    d_local = false;
 
 }
 
 //---------------------------------------------------------------------------//
 // Get the value of u at a point x.
-double TrueSol::evaluate( const double& coord )
+double TrueSol::evaluate( const double& coord ) const
 {
     if ( d_f_order == 0 )
         return  d_c * (1. - pow(coord,2) )/ 2.;
@@ -38,12 +37,6 @@ double TrueSol::evaluate( const double& coord )
        return (1 - pow(coord,4))/12.;
 }
 
-//---------------------------------------------------------------------------//
-// Get the value of u at a point x.
-bool TrueSol::checkLocal()
-{
-    return d_local;
-}
 //---------------------------------------------------------------------------//
 
 } 

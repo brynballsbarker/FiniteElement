@@ -1,37 +1,34 @@
 //---------------------------------------------------------------------------//
 /*!
- * \file Force.hh
+ * \file Function.hh
  */
 //---------------------------------------------------------------------------//
 
-#ifndef FEA_FORCE_HH
-#define FEA_FORCE_HH
+#ifndef FEA_FUNCTION_HH
+#define FEA_FUNCTION_HH
 
-#include "Function.hh"
-
-#include <array>
-#include <vector>
 
 namespace FEA
 {
-
 //---------------------------------------------------------------------------//
 /*!
- * \class Force
+ * \class Function
  *
- * \brief Force function. 
+ * \brief Function interface for the creation of initial particle state.
  */
-class Force : public Function
+class Function
 {
   public:
 
     // Constructor.
-    Force( const int f_order,
-           const double c );
+    Function(const int f_order,
+             const double c,
+             const bool u,
+             const bool f );
 
     // Get the value of f at a point x.
-    double evaluate( const double& coord ) const override;
-         
+    double evaluate( const double& coord );
+
   private:
 
     // Material id.
@@ -40,18 +37,17 @@ class Force : public Function
     // Color
     int d_c;
 
-    int d_u;
+    bool d_u;
 
-    int d_f;
-
+    bool d_f;
 };
 
-} 
-
 //---------------------------------------------------------------------------//
 
-#endif // end FEA_FORCE_HH
+} // end namespace FEA
+
+#endif // end FEA_FUNCTION_HH
 
 //---------------------------------------------------------------------------//
-// end Force.hh
+// end Function.hh
 //---------------------------------------------------------------------------//

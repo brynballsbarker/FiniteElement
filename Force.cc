@@ -20,13 +20,12 @@ Force::Force( const int f_order,
     , d_c( c )
 { 
     
-    d_local = false:
 
 }
 
 //---------------------------------------------------------------------------//
 // Get the value of f at a point x.
-double Force::evaluate( const double& coord )
+double Force::evaluate( const double& coord ) const
 {
     if ( d_f_order == 0 )
         return  d_c;
@@ -34,13 +33,6 @@ double Force::evaluate( const double& coord )
         return coord;
     else
        return coord * coord;
-}
-
-//---------------------------------------------------------------------------//
-// Get the value of f at a point x.
-bool Force::checkLocal()
-{
-    return d_local;
 }
 
 //---------------------------------------------------------------------------//
