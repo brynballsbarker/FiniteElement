@@ -1,12 +1,11 @@
-
 //---------------------------------------------------------------------------//
 /*!
- * \file Functions.hh
+ * \file Function.hh
  */
 //---------------------------------------------------------------------------//
 
-#ifndef FEA_FUNCTIONS_HH
-#define FEA_FUNCTIONS_HH
+#ifndef FEA_FUNCTION_HH
+#define FEA_FUNCTION_HH
 
 
 #include <array>
@@ -17,20 +16,43 @@ namespace FEA
 
 //---------------------------------------------------------------------------//
 /*!
- * \usefule Functions
+ * \class Function
  *
+ * \brief Function function. 
  */
+class Function 
+{
+  public:
 
-// Function for computing factorials
-int factorial( int n );
+    // Constructor.
+    Function( const int f_order,
+              const double c,
+              const bool u,
+              const bool f );
 
+    // Get the value of f at a point x.
+    double evaluate( const double& coord );
+         
+  private:
+
+    // Material id.
+    int d_f_order;
+
+    // Color
+    int d_c;
+
+    int d_u;
+
+    int d_f;
+
+};
 
 } 
 
 //---------------------------------------------------------------------------//
 
-#endif // end FEA_FUNCTIONS_HH
+#endif // end FEA_FUNCTION_HH
 
 //---------------------------------------------------------------------------//
-// end Functions.hh
+// end Function.hh
 //---------------------------------------------------------------------------//
