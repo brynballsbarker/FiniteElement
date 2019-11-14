@@ -41,12 +41,6 @@ class Element
     //! Shape functions.
     std::vector<std::shared_ptr<Shape> > shape_functions;
 
-    //! Element basis functions.
-    std::array<double,2> basis_values;
-
-    //! Element basis derivatives.
-    std::array<double,2> basis_derivatives;;
-
     //! Element stiffness matrix. 
     std::array<std::array<double,2>,2> k;
     //@}

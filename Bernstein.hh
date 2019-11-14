@@ -19,7 +19,7 @@ namespace FEA
 /*!
  * \class Bernstein
  *
- * \brief True solution to system.
+ * \brief Bernstein basis function.
  */
 class Bernstein
 {
@@ -29,21 +29,24 @@ class Bernstein
     Bernstein( const int p_val,
              const int a_val );
 
-    // Get the value of shpae func at a point x.
+    // Get the value of shape func at a point x.
     double evaluate( const double& coord );
 
     // Get the derivate at point x.
     double evaluateDeriv( const double& coord );
 
+    // Get the second derivate at point x.
+    double evaluateSecondDeriv( const double& coord );
+
   private:
 
-    // Order of f.
+    // Shape function order..
     int d_p;
 
-    // Value of c.
+    // Which shape function.
     int d_a;
 
-    // p choose c.
+    // p choose a.
     int d_choose;
 
 };

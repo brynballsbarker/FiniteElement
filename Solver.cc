@@ -21,16 +21,20 @@ namespace FEA
 Solver::Solver( const int n,
                 const int f_order,
                 const double c,
-                const int p )
+                const int p,
+                const bool beam,
+                const std::array<double,5> consts )
     : d_n( n )
     , d_f_order( f_order )
     , d_p( p )
+    , d_beam( beam )
+    , d_consts( consts )
 {
     // Define f.
-    d_f = std::make_shared<Function>( f_order, c, false, true );
+    d_f = std::make_shared<Function>( f_order, c, false, true, beam, consts );
 
     // Define the solution.
-    d_u = std::make_shared<Function>( f_order, c, true, false );
+    d_u = std::make_shared<Function>( f_order, c, true, false, beam, consts );
 
     // Create the mesh.
     d_mesh = std::make_shared<Mesh>( n, p );
@@ -47,9 +51,9 @@ void Solver::initialize()
     for ( int c = 0; c < num_elements; ++c )
     {
         // Create new element with given id.
-        // d_bernstein[a-1] = std::make_shared<Bernstein>( d_shape_order, a );
         FEA::Element element;
         d_mesh->initializeElement( c, element );
+        
         // Add element to storage vector. 
         d_elements.push_back( element );
     }
@@ -119,39 +123,40 @@ void Solver::solve()
 
     }
 
+    // Adjust F to match boundary data.
     F[N_size-1] = 0.;
+
+    // Adjust K to match boundary data.
     for ( int i = 0; i < N_size; ++i )
     {
         K[N_size-1][i] = 0.;
         K[i][N_size-1] = 0.;
     }
-
     K[N_size-1][N_size-1] = 1.0;
+
+    if ( d_beam )
+    {
+        // Adjust F to match beam boundary data.
+        double end = -1.0;
+        F[0] -= d_elements[0].shape_functions[0]->evaluateDeriv(end)*d_consts[0];
+        F[0] += d_elements[0].shape_functions[0]->evaluate(end)*d_consts[1];
+        F[1] -= d_elements[0].shape_functions[1]->evaluateDeriv(end)*d_consts[0];
+        F[N_size-2] = 0.;
+
+        // Adjust K to match beam boundary data.
+        for ( int i = 0; i < N_size; ++i )
+        {
+            K[N_size-2][i] = 0.;
+            K[i][N_size-2] = 0.;
+        }
+        K[N_size-2][N_size-2] = 1.0;
+    }
 
     // Solve Kd = F using Gauss Elimination.
     std::vector<double> d( F.begin(), F.end() );;
     gauss( d, K );
-    /*
-    for ( int i = 0; i < N_size; ++i )
-    {
-        for ( int j = 0; j < N_size; ++j )
-            std::cout << K[i][j] << " ";
-        std::cout << std::endl;
-    }
-    std::cout << std::endl;
-    std::cout << "\nF\n\n";
-    for ( int i = 0; i < N_size; ++i )
-        std::cout << F[i] << " ";
-    std::cout << std::endl;
-    std::cout << "\nd\n";
-    std::cout << std::endl;
 
-    for ( int i = 0; i < N_size; ++i )
-        std::cout << d[i] << " ";
-    std::cout << "\n";
-
-*/
-
+    // Initialize domain and solutions.
     std::vector<double> domain(2*num_nodes - 1,0.0);
     std::vector<double> uh(2*num_nodes - 1, 0.0);
     std::vector<double> u(2*num_nodes - 1, 0.0);
@@ -164,10 +169,6 @@ void Solver::solve()
     // Compute the error.
     double error, nodes, midpoints;
     computeError( error, d );
-//    checkBehavior( nodes, midpoints, u, uh );
-
-//    std::cout << "\t\tError on nodes: \t\t" << nodes << std::endl;
-//    std::cout << "\t\tError on midpoints: \t" << midpoints << std::endl;
 
     // Store the solutions for plotting.
     plot( domain, uh, u );
@@ -187,8 +188,11 @@ void Solver::updateK( std::vector<std::vector<double> >& K,
         {
             for ( int k = j; k < d_p+1; ++k )
             {
+                // Compute energy inner product.
                 double val = energyInnerProduct(e.shape_functions[j],
                                                 e.shape_functions[k]);
+
+                // Store in correct K location.
                 K[i+j][i+k] += val;
                 if ( j != k )
                     K[i+k][i+j] += val;
@@ -209,29 +213,6 @@ void Solver::updateF( std::vector<double>& F,
         for ( int j = 0; j < d_p+1; ++j )
             F[i+j] +=  innerProduct(e.shape_functions[j],d_f);
 
-}
-
-//---------------------------------------------------------------------------//
-// Compute the inner products (N_1,f) and (N_2,f).
-void Solver::integrateRHS( const FEA::Element& e,
-                           std::array<double,2>& f) 
-{
-    // Get global element endpoints.
-    double left = e.n1;
-    double right = e.n2;
-
-    // Compute the force value at the endpoints.
-    double f_1 = d_f->evaluate( left );
-    double f_2 = d_f->evaluate( right );
-
-    // Approximate the inner products. 
-    double h = right - left;
-    f[0] = h * (2.*f_1 + f_2)/6.;
-    f[1] = h * (f_1 + 2.*f_2)/6.;
-
-    // Check if this is the last element.
-    if ( right == 1. )
-        f[1] = 0.0;
 }
 
 //---------------------------------------------------------------------------//
@@ -287,9 +268,11 @@ void Solver::gauss( std::vector<double>& d,
 // Create the domain which consists of each node and each element midpoint.
 void Solver::createDomain( std::vector<double>& domain )
 {
+    // Determine h.
     int dom_len = domain.size();
     double h_step = 1. / ( dom_len - 1. );
 
+    // Initialize the domain.
     for ( int i = 0; i < dom_len; ++i )
         domain[i] = i * h_step;
 }
@@ -302,6 +285,7 @@ void Solver::evaluateApprox( const std::vector<double>& domain,
 {
     int dom_len = domain.size();
 
+    // Initialize necessary variables.
     double x;
     int element_id;
     double ref_coord;
@@ -310,6 +294,7 @@ void Solver::evaluateApprox( const std::vector<double>& domain,
     // Loop through each value in domain
     for ( int i = 0; i < dom_len; ++i )
     {
+        // Get relevant domain value.
         x = domain[i];
 
         // Determine which element x is in.
@@ -319,8 +304,10 @@ void Solver::evaluateApprox( const std::vector<double>& domain,
         d_mesh->mapGlobalToLocalFrame( x, element_id, ref_coord );
 
         // Compute the value of uh at x.
+        // Get the element x is contained in.
         auto& e = d_elements[ element_id ];
 
+        // Loop through the relevant shape functions to compute uh(x).
         double val = 0.;
         for ( int j = 0; j < d_p + 1; ++j )
             val += d[element_id+j] * e.shape_functions[j]->evaluate(ref_coord);
@@ -335,10 +322,9 @@ void Solver::evaluateTrue( const std::vector<double>& domain,
 {
     int dom_len = domain.size();
 
+    // Evaluate u at each point in the domain.
     for ( int i = 0; i < dom_len; ++i )
-    {
         u[i] = d_u->evaluate( domain[i] );
-    }
 }
 
 //---------------------------------------------------------------------------//
@@ -346,18 +332,20 @@ void Solver::evaluateTrue( const std::vector<double>& domain,
 void Solver::computeError( double& error,
                     const std::vector<double>& d )
 {
-    double u_ksi;
-    double uh_ksi;
+    double u_xi;
+    double uh_xi;
 
     double x;
     std::array<double,2> values;
 
     // Define gaussian quadrature interpolation points. 
-    std::array<double,3> ksi = {-pow(3./5.,.5), 0.0, pow(3./5.,.5)};
+    std::array<double,3> xi = {-pow(3./5.,.5), 0.0, pow(3./5.,.5)};
     std::array<double,3> w = {5./9.,8./9.,5./9.};
 
-    double h = d_mesh->getElementWidth();
-    double dx = h / 2.;
+    // Compute jacobian J.
+    double J = d_mesh->getJacobian();
+
+    // Initialize sum. 
     double sum = 0.0;
 
     // Loop over elements.
@@ -366,17 +354,17 @@ void Solver::computeError( double& error,
         for ( int i = 0; i < 3; ++i )
         {
             // Map local to global and compute u(x).
-            d_mesh->mapLocalToGlobalFrame( ksi[i], e.n1, e.n2, x );
-            u_ksi = d_u->evaluate( x );
+            d_mesh->mapLocalToGlobalFrame( xi[i], e.n1, e.n2, x );
+            u_xi = d_u->evaluate( x );
 
-            // Compute uh(ksi)
+            // Compute uh(xi)
             double val = 0.;
             for ( int j = 0; j < d_p + 1; ++j )
-                val += d[e.ind1+j] * e.shape_functions[j]->evaluate(ksi[i]);
-            uh_ksi = val;    
+                val += d[e.ind1+j] * e.shape_functions[j]->evaluate(xi[i]);
+            uh_xi = val;    
 
             // Add the approximation to the sum
-            sum += pow( u_ksi-uh_ksi, 2 ) * dx * w[i];
+            sum += pow( u_xi-uh_xi, 2 ) * J * w[i];
         }
     }
 
@@ -389,7 +377,7 @@ void Solver::computeError( double& error,
 }
 
 //---------------------------------------------------------------------------//
-// Compute the L2 norm of |u - uh|.
+// Compute the inner product (f,N_A).
 double Solver::innerProduct( std::shared_ptr<FEA::Shape> func1, 
                              std::shared_ptr<FEA::Function> func2 )
 {
@@ -399,69 +387,70 @@ double Solver::innerProduct( std::shared_ptr<FEA::Shape> func1,
     double val1, val2;
 
     // Define gaussian quadrature interpolation points. 
-    std::array<double,3> ksi = {-pow(3./5.,.5), 0.0, pow(3./5.,.5)};
+    std::array<double,3> xi = {-pow(3./5.,.5), 0.0, pow(3./5.,.5)};
     std::array<double,3> w = {5./9.,8./9.,5./9.};
 
-    double h = d_mesh->getElementWidth();
-    double dx = h / 2.;
+    // Compute jacobian J.
+    double J = d_mesh->getJacobian();
+
+    // Initialize sum. 
     double sum = 0.0;
 
- //   std::cout << "val1\tx\tval2\n";
-    // Loop over elements.
+    // Loop over interpolation points.
     for ( int i = 0; i < 3; ++i )
     {
-        val1 = func1->evaluate(ksi[i]);
-        d_mesh->mapLocalToGlobalFrame( ksi[i], endpoints[0], endpoints[1], x );
+        // Evaluate the shape function.
+        val1 = func1->evaluate(xi[i]);
+
+        // Evaluate the force function.
+        d_mesh->mapLocalToGlobalFrame( xi[i], endpoints[0], endpoints[1], x );
         val2 = func2->evaluate(x);
 
-//        std::cout << val1 << "\t" << x << "\t" << val2 << std::endl;
-        
-        sum += val1*val2*dx*w[i];
+        sum += val1*val2*J*w[i];
     }
 
     return sum;
     
 }
 //---------------------------------------------------------------------------//
-// Compute the L2 norm of |u - uh|.
+// Compute the energy inner product (N_A, N_B).
 double Solver::energyInnerProduct( std::shared_ptr<FEA::Shape> func1, 
                                    std::shared_ptr<FEA::Shape> func2)
 {
     double val1, val2;
 
     // Define gaussian quadrature interpolation points. 
-    std::array<double,3> ksi = {-pow(3./5.,.5), 0.0, pow(3./5.,.5)};
+    std::array<double,3> xi = {-pow(3./5.,.5), 0.0, pow(3./5.,.5)};
     std::array<double,3> w = {5./9.,8./9.,5./9.};
 
-    double h = d_mesh->getElementWidth();
-    double dx = h / 2.;
+    // Compute jacobian J.
+    double J = d_mesh->getJacobian();
+
+    // Initialize sum. 
     double sum = 0.0;
 
-    // Loop over elements.
+    // Loop over interpolation points.
     for ( int i = 0; i < 3; ++i )
     {
-        val1 = func1->evaluateDeriv(ksi[i]);
-        val2 = func2->evaluateDeriv(ksi[i]);
-        sum += val1*val2*dx*w[i];
+        if ( d_beam )
+        {
+            // Store E*I.
+            double EI = d_consts[3]*d_consts[4];
+
+            // Evaluate both shape functions.
+            val1 = func1->evaluateSecondDeriv(xi[i]);
+            val2 = func2->evaluateSecondDeriv(xi[i]);
+            sum += val1*val2*J*w[i]*EI;
+        }
+        else
+        {
+            // Evaluate both shape functions.
+            val1 = func1->evaluateDeriv(xi[i]);
+            val2 = func2->evaluateDeriv(xi[i]);
+            sum += val1*val2*J*w[i];
+        }
     }
-
     return sum;
-}
-//---------------------------------------------------------------------------//
-// Compute the L2 norm of |u - uh|.
-void Solver::checkBehavior( double& nodes,
-                            double& midpoints,
-                            const std::vector<double>& u,
-                            const std::vector<double>& uh )
-{
-    for ( int i = 0; i < u.size(); i+=2 )
-        nodes += pow( u[i] - uh[i] , 2 );
-    nodes = sqrt(nodes);
-
-    for ( int i = 1; i < u.size(); i+=2 )
-        midpoints += pow( u[i] - uh[i] , 2 );
-    midpoints = sqrt(midpoints);
-
 }
 
 //---------------------------------------------------------------------------//
@@ -483,10 +472,8 @@ void Solver::plot( const std::vector<double>& domain,
 
     // Write the solutions to the file.
     for ( int i = 0; i < n; ++i )
-    {
         file << domain[i] << ","
              << uh[i] << "," << u[i] << std::endl;
-    }
 
 }
 

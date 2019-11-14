@@ -17,13 +17,12 @@ namespace FEA
 
 //---------------------------------------------------------------------------//
 /*!
- * \usefule Helpers
+ * \useful Helper functions.
  *
  */
 
 // Helper for computing factorials
 int factorial( int n );
-
 
 } 
 

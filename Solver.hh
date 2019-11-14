@@ -29,7 +29,9 @@ class Solver
     Solver( const int num_elements,
             const int f_order,
             const double c,
-            const int p );
+            const int p,
+            const bool beam,
+            const std::array<double,5> consts );
 
     // Initialize the problem by initializing the elements.
     void initialize();
@@ -72,21 +74,15 @@ class Solver
     void computeError( double& error,
                        const std::vector<double>& d );
 
-    // Compute the L2 norm of |u - uh|.
+    // Compute the inner product (N_A, f).
     double innerProduct( std::shared_ptr<FEA::Shape> func1, 
                          std::shared_ptr<FEA::Function> func2 );
    
-    // Compute the L2 norm of |u - uh|.
+    // Compute the energy inner product (N_A,N_B).
     double energyInnerProduct( std::shared_ptr<FEA::Shape> func1, 
                                std::shared_ptr<FEA::Shape> func2 );
 
-    // Look at behavior on the nodes and on the interior.
-    void checkBehavior( double& nodes,
-                            double& midpoints,
-                            const std::vector<double>& u,
-                            const std::vector<double>& uh );
-
-    // Write the solutions to output files for plotting..
+    // Write the solutions to output files for plotting.
     void plot( const std::vector<double>& domain,
                const std::vector<double>& uh,
                const std::vector<double>& u );
@@ -113,6 +109,12 @@ class Solver
 
     // Elements.
     std::vector<Element> d_elements;
+
+    // Is this a beam problem?
+    bool d_beam;
+
+    // Constants for the beam.
+    std::array<double,5> d_consts;
 
 };
 

@@ -25,33 +25,39 @@ Mesh::Mesh( const int n, const int p )
     d_boundary_nodes.resize(1);
     d_boundary_nodes[0] = d_num_nodes;
 
+    // Create bernstein basis.
     d_bernstein.resize( d_shape_order+1 );
     for ( int a = 1; a <= d_shape_order + 1; ++a )
         d_bernstein[a-1] = std::make_shared<Bernstein>( d_shape_order, a );
 
+/*
+    // Write bernstein basis to file to check plot.
     std::string filename = "toplotbern.csv";
     std::ofstream file( filename );
 
     // Add column names.
     file << "x,y" << std::endl;
 
+    // Create domain.
     std::array<double,100> dom;
-
     int dom_len = dom.size();
     double h_step = 2. / ( dom_len - 1. );
-
     for ( int i = 0; i < dom_len; ++i )
         dom[i] = -1. + i * h_step;
 
+    // Write basis values for each basis function to file.
     for ( auto& b : d_bernstein  )
         for ( int i = 0; i < dom_len; ++i )
             file << dom[i] << "," << b->evaluate(dom[i]) << std::endl;
+*/
 
-
+    // Allocate storage for C matrices
     d_coefs.resize( d_num_elements );
 
+    // C0 basis.
     if ( d_shape_order == 1 )
     { 
+        // All elements have same C matrix.
         for ( int e = 0; e < d_num_elements; ++e )
         {
             d_coefs[e].resize( d_shape_order + 1 );
@@ -64,8 +70,10 @@ Mesh::Mesh( const int n, const int p )
 
         }
     }
+    // C1 basis
     if ( d_shape_order == 2 )
     {
+        // First and last elements have unique C.
         for ( int e = 0; e < d_num_elements; ++e )
         {
             d_coefs[e].resize( d_shape_order + 1 );
@@ -104,8 +112,10 @@ Mesh::Mesh( const int n, const int p )
             }
         }
     }
+    // C2 basis.
     if ( d_shape_order == 3 )
     {
+        // First and last two have unique C.
         for ( int e = 0; e < d_num_elements; ++e )
         {
             d_coefs[e].resize( d_shape_order + 1 );
@@ -206,6 +216,13 @@ double Mesh::getElementWidth() const
 }
 
 //---------------------------------------------------------------------------//
+// Get the Jacobian for the global to local mapping.
+double Mesh::getJacobian() const
+{
+    return d_element_width/2.;
+}
+
+//---------------------------------------------------------------------------//
 // Given a node id get its coordinate.
 void Mesh::nodeCoordinate( const int node_id,
                             double& coord ) const
@@ -227,9 +244,11 @@ void Mesh::elementCoordinates( const int element_id,
     double n1;
     double n2;
 
+    // Get the node coordinates.
     nodeCoordinate(element_id, n1);
     nodeCoordinate(element_id+1, n2);
 
+    // Assign them to coords.
     coords[0] = n1;
     coords[1] = n2;
 }
@@ -245,15 +264,15 @@ void Mesh::initializeElement(
     std::array<double,2> coords;
     elementCoordinates( element_id, coords );
 
+    // Establish basic characteristics.
     element.id = element_id;
     element.n1 = coords[0];
     element.n2 = coords[1];
     element.ind1 = element_id;
     element.ind2 = element_id + 1;
     
-    element.shape_functions.resize( d_shape_order+1 );
-
     // Initialize shape functions.
+    element.shape_functions.resize( d_shape_order+1 );
     for ( int a = 1; a <= d_shape_order+1; ++a )
         element.shape_functions[a-1] = std::make_shared<FEA::Shape>(
                 d_coefs[element_id][a-1], d_bernstein, coords );
@@ -268,10 +287,10 @@ void Mesh::locateX( const double& x,
 {
     // Mesh spans (0.0, 1.0)
     element_id = std::floor( x / d_element_width );
+
+    // Check for last element.
     if ( x == 1. )
-    {
         element_id = d_num_elements - 1;
-    }
 
     assert( 0 <= element_id );
     assert( element_id < d_num_elements );
@@ -300,46 +319,6 @@ void Mesh::mapGlobalToLocalFrame(
     ref_coord = ( x / d_element_width - element_id ) * 2. - 1.;
 
     assert( -1.0 <= ref_coord && ref_coord <= 1.0 );
-}
-
-//---------------------------------------------------------------------------//
-// Given reference coordinate in a cell get the value of the shape
-// functions at that coordinate.
-void Mesh::shapeFunctionValues( const double& ref_coord,
-                               std::array<double,2>& values ) const
-{
-    values[0] = (1.0 - ref_coord) / 2.;
-    values[1] = (1.0 + ref_coord) / 2.;
-}
-
-//---------------------------------------------------------------------------//
-// Given reference coordinates in an element get the gradient of the shape
-// function at that coordinate.
-void Mesh::shapeFunctionDerivatives(
-    const double& ref_coord,
-    std::array<double,2>& derivatives ) const
-{
-        derivatives[0] = -d_num_elements;
-        derivatives[1] = d_num_elements;
-}
-
-//---------------------------------------------------------------------------//
-// Evaluate the approximate solution at x.
-double Mesh::approxValue( const double& x,
-                        const std::vector<double>& d,
-                        const std::vector<Element>& elements )
-{
-    int element_id;
-    double ref_coord;
-    std::array<double,2> values;
-
-    locateX( x, element_id );
-    mapGlobalToLocalFrame( x, element_id, ref_coord );
-    shapeFunctionValues( ref_coord, values );
-
-    auto& e = elements[ element_id ];
-
-    return d[e.ind1] * values[0] + d[e.ind2] * values[1];
 }
 
 //---------------------------------------------------------------------------//

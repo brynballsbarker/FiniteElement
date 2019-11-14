@@ -19,7 +19,7 @@ namespace FEA
 /*!
  * \class Shape
  *
- * \brief True solution to system.
+ * \brief Shape function for one element.
  */
 class Shape
 {
@@ -30,23 +30,27 @@ class Shape
            std::vector<std::shared_ptr<FEA::Bernstein> > basis,
            std::array<double, 2> endpoints );
 
-    // Get the value of shpae func at a point x.
+    // Get the value of shape func at a point x.
     double evaluate( double& coord );
 
     // Get the derivate at point x.
     double evaluateDeriv( double& coord );
 
-    //
+    // Get the second derivate at point x.
+    double evaluateSecondDeriv( double& coord );
+
+    // Get the endpoints of the correpsonding element.
     std::array<double,2> getEndpoints() const;
 
   private:
 
-    // Order of f.
+    // C matrix for bezier extraction.
     std::vector<double> d_coefs;
 
     // Bernstein basis
     std::vector<std::shared_ptr<FEA::Bernstein> > d_basis;
 
+    // Endpoints for corresponding element.
     std::array<double,2> d_endpoints;
 
 };
