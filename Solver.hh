@@ -49,10 +49,6 @@ class Solver
     void updateF( std::vector<double>& F,
                   FEA::Element& e);
 
-    // Compute the inner products (N_1,f) and (N_2,f).
-    void integrateRHS( const FEA::Element& e,
-                       std::array<double,2>& f );
-
     // Use Gauss Elimination to solve the system Kd = F.
     void gauss( std::vector<double>& d,
                 std::vector<std::vector<double> > K );
@@ -115,6 +111,18 @@ class Solver
 
     // Constants for the beam.
     std::array<double,5> d_consts;
+
+    // IEN Array.
+    std::vector<std::vector<int> > d_IEN;
+
+    // ID Array.
+    std::vector<int> d_ID;
+
+    // LM Array.
+    std::vector<std::vector<int> > d_LM;
+
+    // Beam height.
+    double d_h;
 
 };
 

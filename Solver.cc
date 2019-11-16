@@ -38,6 +38,8 @@ Solver::Solver( const int n,
 
     // Create the mesh.
     d_mesh = std::make_shared<Mesh>( n, p );
+
+    d_h = pow( d_consts[2]/10., 1/3. );
 }
 
 //---------------------------------------------------------------------------//
@@ -57,6 +59,34 @@ void Solver::initialize()
         // Add element to storage vector. 
         d_elements.push_back( element );
     }
+
+    // Allocate storage for IEN array..
+    d_IEN.resize( d_p+1 );
+    for ( int i = 0; i < d_p+1; ++i )
+        d_IEN[i].resize( num_elements );
+
+    // Allocate storage for ID array.
+    d_ID.resize( num_elements+d_p );
+
+    // Allocate storage for LM array.
+    d_LM.resize( d_p+1 );
+    for ( int i = 0; i < d_p+1; ++i )
+        d_LM[i].resize( num_elements );
+
+    // Set IEN( a, e ) = A.
+    for ( int i = 0; i < d_p+1; ++i )
+        for ( int j = 0; j < num_elements; ++j )
+            d_IEN[i][j] = i+j;
+
+    // Set ID( A ) = P or -1 (because index starts at 0).
+    for ( int i = 0; i < num_elements+d_p; ++i )
+        d_ID[i] = ( i > ( num_elements+d_p-(2+d_beam) ) ) ? -1 : i;
+
+    // Set LM( a, e ) = ID( IEN( a, e ))
+    for ( int i = 0; i < d_p+1; ++i )
+        for ( int j = 0; j < num_elements; ++j )
+            d_LM[i][j] = d_ID[ d_IEN[i][j] ];
+
 }
 
 //---------------------------------------------------------------------------//
@@ -67,43 +97,40 @@ void Solver::solve()
     int num_elements = d_mesh->totalNumElements();
     int num_nodes = d_mesh->totalNumNodes();
 
+    // Detemine K and F size.
     int N_size = num_elements + d_p;
 
-
-    // Storing for plotting
-    //
-    // domain
-    //
-
+/*
+    // Write shape function values to file for plotting.
     std::string filename = "toplot.csv";
     std::ofstream file( filename );
 
     // Add column names.
     file << "x,y" << std::endl;
 
+    // Initialize domain.
     std::array<double,100> dom;
-
     int dom_len = dom.size();
     double h_step = 2. / ( dom_len - 1. );
-
     for ( int i = 0; i < dom_len; ++i )
         dom[i] = -1. + i * h_step;
 
+    // Loop through elements.
     for ( auto& e : d_elements )
     {
+        // Initialize element support.
         std::array<double,100> x;
         int x_len = x.size();
         h_step = (e.n2 - e.n1)/(x_len-1.);
-
         for ( int i = 0; i < x_len; ++i )
             x[i] = e.n1 + i * h_step;
 
+        // Evaluate shape functions over support.
         for ( auto& s : e.shape_functions )
             for ( int i = 0; i < x_len; ++i )
-                file << x[i] << "," << s->evaluate(dom[i]) << std::endl;
-        
+                file << x[i] << "," << s->evaluate(dom[i]) << std::endl;      
     }
-
+*/
 
     // Initialize K.
     std::vector<std::vector<double> > K(
@@ -118,38 +145,42 @@ void Solver::solve()
         // Add local stiffness matrix to global
         updateK( K, e );
 
+
         // Add local force vector to global
         updateF( F, e );
 
+        for ( int i = 0; i < d_p+1; ++i )
+        {
+            // Get A and boundary data.
+            int A1 = d_LM[ i ][ e.id ];
+            int L1 = d_IEN[ i ][ e.id ];
+            for ( int j = 0; j < d_p+1; ++j )
+            {
+                // Get A and boundary data.
+                int A2 = d_LM[ j ][ e.id ];
+                int L2 = d_IEN[ j ][ e.id ];
+
+                // Add to global K matrix.
+                double val = ( A1*A2 < 0 || A1+A2 < 0 ) ? 0.0 : e.k[i][j];
+                K[L1][L2] += val;
+                if ( val == 0.0 && L1 == L2 )
+                    K[L1][L2] = 1.0;
+
+            }
+
+            // Add to global F matrix.
+            F[L1] += ( A1 < 0 ) ? 0.0 : e.f[i];
+        }
+
     }
 
-    // Adjust F to match boundary data.
-    F[N_size-1] = 0.;
-
-    // Adjust K to match boundary data.
-    for ( int i = 0; i < N_size; ++i )
-    {
-        K[N_size-1][i] = 0.;
-        K[i][N_size-1] = 0.;
-    }
-    K[N_size-1][N_size-1] = 1.0;
-
+    // Add boundary data for the beam.
     if ( d_beam )
     {
-        // Adjust F to match beam boundary data.
         double end = -1.0;
         F[0] -= d_elements[0].shape_functions[0]->evaluateDeriv(end)*d_consts[0];
         F[0] += d_elements[0].shape_functions[0]->evaluate(end)*d_consts[1];
         F[1] -= d_elements[0].shape_functions[1]->evaluateDeriv(end)*d_consts[0];
-        F[N_size-2] = 0.;
-
-        // Adjust K to match beam boundary data.
-        for ( int i = 0; i < N_size; ++i )
-        {
-            K[N_size-2][i] = 0.;
-            K[i][N_size-2] = 0.;
-        }
-        K[N_size-2][N_size-2] = 1.0;
     }
 
     // Solve Kd = F using Gauss Elimination.
@@ -172,46 +203,50 @@ void Solver::solve()
 
     // Store the solutions for plotting.
     plot( domain, uh, u );
-    std::cout << "\t\tL2 Error: \t\t\t\t" << error << std::endl;
+    std::cout << "\t\tL2 Error: \t\t" << error << std::endl;
+
+    // Display max beam deflection./
+    double def = ( uh[0] - u[0] >= 0. ) ? uh[0]-u[0] : u[0]-uh[0];
+    if ( d_beam )
+        std::cout << "\t\tMax Tip Deflection:\t" << def << std::endl;
 }
 
 //---------------------------------------------------------------------------//
-// Update the global stiffness matrix.
+// Update the local element stiffness matrix.
 void Solver::updateK( std::vector<std::vector<double> >& K, 
                       FEA::Element& e) 
 {
-        // Get global element position
-        int i = e.ind1;
+    // Allocate size for element stiffness matrix.
+    e.k.resize( d_p+1 );
+    for ( int i = 0; i < d_p+1; ++i )
+        e.k[i].resize( d_p+1 );
 
-        // Update stiffness matrix.
-        for ( int j = 0; j < d_p+1; ++j )
+    // Compute element stiffness matrix.
+    for ( int i = 0; i < d_p+1; ++i )
+    {
+        for ( int j = i; j < d_p+1; ++j )
         {
-            for ( int k = j; k < d_p+1; ++k )
-            {
-                // Compute energy inner product.
-                double val = energyInnerProduct(e.shape_functions[j],
-                                                e.shape_functions[k]);
+            // Compute energy inner product.
+            double val = energyInnerProduct(e.shape_functions[i],
+                                            e.shape_functions[j]);
 
-                // Store in correct K location.
-                K[i+j][i+k] += val;
-                if ( j != k )
-                    K[i+k][i+j] += val;
-            }
+            // Store in stiffness matrix.
+            e.k[i][j] = val;
+            e.k[j][i] = val;
         }
-
+    }
 }
 
 //---------------------------------------------------------------------------//
-// Update the global force vector.
+// Update the local element force vector.
 void Solver::updateF( std::vector<double>& F,
                       FEA::Element& e) 
 {
-        // Get global element position
-        int i = e.ind1;
+    e.f.resize( d_p+1 );
 
-        // Update stiffness matrix.
-        for ( int j = 0; j < d_p+1; ++j )
-            F[i+j] +=  innerProduct(e.shape_functions[j],d_f);
+    // Update stiffness matrix.
+    for ( int i = 0; i < d_p+1; ++i )
+        e.f[i] +=  innerProduct(e.shape_functions[i],d_f);
 
 }
 
@@ -373,7 +408,7 @@ void Solver::computeError( double& error,
     // Write the error to output file. 
     std::string filename = "results/errors.csv";
     std::ofstream file( filename, std::fstream::in | std::fstream::out | std::fstream::app );
-    file << d_n << ',' << d_f_order << ',' << error << std::endl;
+    file << d_n << ',' << d_f_order << ',' << d_h << "," << error << std::endl;
 }
 
 //---------------------------------------------------------------------------//
@@ -462,9 +497,12 @@ void Solver::plot( const std::vector<double>& domain,
 
     int n = uh.size();
 
+    std::string desc = ( d_beam ) ? "beam" : std::to_string(d_f_order);
+
     // Open new file for this combination of n and f.
     std::string filename = "results/results_" + std::to_string(d_n) +
-                           "_" + std::to_string(d_f_order) + ".csv";
+                           "_" + std::to_string(d_p) + "_" +
+                           desc + "_" + std::to_string(d_h) + ".csv";
     std::ofstream file( filename );
 
     // Add column names.

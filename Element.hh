@@ -42,7 +42,12 @@ class Element
     std::vector<std::shared_ptr<Shape> > shape_functions;
 
     //! Element stiffness matrix. 
-    std::array<std::array<double,2>,2> k;
+    std::vector<std::vector<double> > k;
+
+    //! Element force vector.
+    std::vector<double> f;
+
+
     //@}
 
     // Constructor.
