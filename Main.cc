@@ -25,7 +25,7 @@ int main(int argc, char** argv)
         std::cout << "\nSolving u_xx = f with p = " << p << "\n\n";
 
     // Define beam constants [M,Q,f,E,I].
-    std::array<double,5> consts = {0.0,0.0,10.*pow(.005,3),pow(10.,6),pow(.005,4)/12.};//10.0,10.0,10.*.005*.005*.005,1000000.,10.};
+    std::array<double,5> consts = {0.0,0.0,10.*pow(.005,3),pow(10.,6),pow(.005,4)/12.};
 
     // Create csv file for storing errors.
     std::string filename = "results/errors.csv";
